@@ -1,22 +1,39 @@
 # AI Group Chat Backend
 
-A real-time group chat backend where you and multiple AI agents can chat together in one room using WebSocket communication.
+A real-time group chat backend where you and multiple AI agents can chat together in one room using WebSocket communication with OpenAI API integration.
 
 ## Features
 
 - **Real-time Communication**: Using Socket.IO for instant message delivery
 - **Multiple Rooms**: Create and manage multiple chat rooms
 - **Mixed Participants**: Support for both human users and AI agents
+- **AI Integration**: Automatic AI responses using OpenAI's GPT-3.5-turbo
 - **Message History**: Store and retrieve chat messages
 - **Typing Indicators**: See when others are typing
 - **Room Management**: Create rooms, view participants, manage max capacity
 - **Automatic Broadcasting**: Messages broadcast to all room participants
+- **Modern Web UI**: Beautiful frontend interface included
+
+## Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+- OpenAI API Key (free trial available at https://platform.openai.com)
 
 ## Setup
 
 ### Prerequisites
 - Node.js (v14 or higher)
 - npm or yarn
+- OpenAI API Key (free trial available at https://platform.openai.com)
+
+### Get Your OpenAI API Key
+
+1. Go to https://platform.openai.com/signup
+2. Sign up for a free account (if you don't have one)
+3. Navigate to https://platform.openai.com/api-keys
+4. Click "Create new secret key"
+5. Copy your API key and save it safely
 
 ### Installation
 
@@ -30,7 +47,13 @@ cd c:\Users\boomb\Desktop\CAI
 npm install
 ```
 
-3. Start the server:
+3. Create a `.env` file in the root directory with your OpenAI API key:
+```
+OPENAI_API_KEY=sk-your-api-key-here
+PORT=5000
+```
+
+4. Start the server:
 ```bash
 npm start
 ```
@@ -40,7 +63,39 @@ For development with auto-reload:
 npm run dev
 ```
 
+5. Open your browser and go to `http://localhost:5000`
+
 The server will run on `http://localhost:5000`
+
+## How It Works
+
+### One API Key, Multiple Agents
+You only need **one OpenAI API key** for unlimited AI agents. Each API call is just a request to OpenAI's servers, and you can have as many agents as you want using the same key.
+
+### AI Agent Personalities
+Each AI agent can have a unique personality/style:
+- **Assistant**: Helpful, concise, and friendly
+- **Expert**: Knowledgeable and technical  
+- **Creative**: Imaginative and innovative
+- **Curious**: Inquisitive and exploratory
+- **Pragmatic**: Direct and practical
+
+### How to Use
+
+1. **Create/Join a Room**: Create a new room or join an existing one
+2. **Add AI Agents**: Add multiple AI agents with different personalities to the room
+3. **Chat**: Type messages and all AI agents will automatically respond
+4. **Each AI Responds**: When you send a message, all AI agents in the room will generate responses based on their personality
+
+Example workflow:
+```
+1. Create room "Tech Discussion"
+2. Join as "You"
+3. Add AI Agent: "Expert" (expert personality)
+4. Add AI Agent: "Creative" (creative personality)
+5. Send message: "How can I improve my code?"
+6. Both Expert and Creative will respond from different perspectives
+```
 
 ## API Endpoints
 
@@ -99,6 +154,19 @@ Response: [
     "timestamp": "ISO string",
     "roomId": "string"
   }
+]
+```
+
+**Get available AI personalities**
+```
+GET /api/ai-personalities
+Response: [
+  {
+    "id": "assistant",
+    "name": "Assistant",
+    "description": "You are a helpful AI assistant. Be concise, friendly, and helpful in your responses."
+  },
+  ...
 ]
 ```
 
