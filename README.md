@@ -1,6 +1,7 @@
 # AI Group Chat Backend
 
 A real-time group chat backend where you and multiple AI agents can chat together in one room using WebSocket communication with OpenAI API integration.
+By Jinsu Jang and Choi Yoontae
 
 ## Features
 
