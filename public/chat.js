@@ -26,6 +26,11 @@ socket.on('new-message', (message) => {
     displayMessage(message);
 });
 
+socket.on('ai-agent-options', (data) => {
+    console.log('Received ai-agent-options:', data);
+    showAIAgentOptions(data);
+});
+
 socket.on('user-joined', (data) => {
     showSystemMessage(data.message);
     updateParticipantCount();
@@ -184,26 +189,33 @@ function sendMessage() {
 }
 
 // Add AI agent to room
-function addAIAgent() {
+async function addAIAgent() {
     if (!currentRoom) {
         alert('Please join or create a room first');
         return;
     }
 
-    const aiName = document.getElementById('aiNameInput').value.trim() || 'Assistant';
-    const aiPersonality = document.getElementById('aiPersonalitySelect').value || 'assistant';
+    const agentName = document.getElementById('aiNameInput').value.trim() || 'Assistant';
+    const personality = document.getElementById('aiPersonalitySelect').value || 'assistant';
     
-    socket.emit('join-room', {
-        roomId: currentRoom,
-        userName: aiName,
-        userType: 'ai-agent'
-    });
-
-    addedAgents.push({ name: aiName, personality: aiPersonality });
-    updateAIAgentsList();
-    
-    document.getElementById('aiNameInput').value = 'Assistant';
-    console.log(`AI Agent "${aiName}" (${aiPersonality}) added to room`);
+    try {
+        const response = await fetch(`/api/rooms/${currentRoom}/add-agent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agentName, personality })
+        });
+        
+        if (!response.ok) throw new Error('Failed to add agent');
+        
+        const data = await response.json();
+        addedAgents.push({ name: agentName, personality: personality, id: data.agentId });
+        updateAIAgentsList();
+        
+        document.getElementById('aiNameInput').value = 'Assistant';
+        console.log(`AI Agent "${agentName}" (${personality}) added to room`);
+    } catch (error) {
+        alert('Error adding AI agent: ' + error.message);
+    }
 }
 
 // Update the list of added AI agents
@@ -235,12 +247,10 @@ function displayMessage(message) {
         minute: '2-digit' 
     });
     
-    messageEl.innerHTML = `
-        <div class="message-content">
-            <div class="message-sender">${message.senderName} <small>${timestamp}</small></div>
-            <div>${escapeHtml(message.message)}</div>
-        </div>
-    `;
+    let content = `<div class="message-sender">${message.senderName} <small>${timestamp}</small></div>
+            <div>${escapeHtml(message.message)}</div>`;
+    
+    messageEl.innerHTML = `<div class="message-content" ${isAI && message.senderColor ? `style="border-left: 4px solid ${message.senderColor};"` : ''}>${content}</div>`;
     
     container.appendChild(messageEl);
     container.scrollTop = container.scrollHeight;
@@ -261,6 +271,108 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Show AI agent selection options
+function showAIAgentOptions(data) {
+    console.log('=== showAIAgentOptions CALLED ===');
+    console.log('Data received:', data);
+    
+    const prompt = document.getElementById('aiResponsePrompt');
+    const checkboxes = document.getElementById('aiAgentCheckboxes');
+    const inputArea = document.getElementById('inputArea');
+    
+    console.log('DOM Elements:', {
+        prompt: prompt ? 'FOUND' : 'NOT FOUND',
+        checkboxes: checkboxes ? 'FOUND' : 'NOT FOUND',
+        inputArea: inputArea ? 'FOUND' : 'NOT FOUND'
+    });
+    
+    if (!prompt || !checkboxes || !inputArea) {
+        console.error('ERROR: One or more required DOM elements not found!');
+        return;
+    }
+    
+    checkboxes.innerHTML = '';
+    console.log('Agents to display:', data.agents);
+    
+    data.agents.forEach(agent => {
+        console.log('Creating checkbox for agent:', agent.name, agent.id);
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '8px';
+        label.style.padding = '8px 12px';
+        label.style.background = '#fff';
+        label.style.borderRadius = '6px';
+        label.style.cursor = 'pointer';
+        label.style.border = '2px solid #ddd';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = agent.id;
+        checkbox.className = 'ai-agent-checkbox';
+        checkbox.checked = true;
+        
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(agent.name));
+        checkboxes.appendChild(label);
+    });
+    
+    console.log('Checkboxes created, now showing prompt...');
+    
+    // Show the prompt
+    prompt.style.display = 'block';
+    console.log('Prompt display set to:', prompt.style.display);
+    
+    // Show input area too
+    inputArea.style.display = 'block';
+    console.log('InputArea display set to:', inputArea.style.display);
+    
+    // Store current message ID for later use
+    window.currentResponseMessageId = data.messageId;
+    console.log('=== showAIAgentOptions COMPLETE ===');
+}
+
+// Request responses from selected AI agents
+async function requestAIResponses() {
+    if (!window.currentResponseMessageId || !currentRoom) return;
+    
+    const checkboxes = document.querySelectorAll('.ai-agent-checkbox:checked');
+    const agentIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (agentIds.length === 0) {
+        alert('Please select at least one AI agent');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/rooms/${currentRoom}/ai-response`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messageId: window.currentResponseMessageId,
+                agentIds: agentIds
+            })
+        });
+        
+        if (response.ok) {
+            // Keep the prompt visible so user can request responses again!
+            document.getElementById('aiResponsePrompt').style.display = 'block';
+            document.getElementById('inputArea').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error requesting AI responses:', error);
+    }
+}
+
+// Continue asking more questions
+function askMoreQuestions() {
+    document.getElementById('aiResponsePrompt').style.display = 'none';
+    document.getElementById('inputArea').style.display = 'block';
+    document.getElementById('messageInput').value = '';
+    document.getElementById('messageInput').focus();
+    window.currentResponseMessageId = null;
 }
 
 // Handle Enter key in message input

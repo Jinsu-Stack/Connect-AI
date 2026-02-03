@@ -37,27 +37,32 @@ const aiAgents = new Map(); // Store AI agent personalities
 // Message history (in-memory; use database for persistence)
 const messageHistory = new Map();
 
-// AI Agent personalities
+// AI Agent personalities with colors
 const aiPersonalities = {
   'assistant': {
     name: 'Assistant',
-    systemPrompt: 'You are a helpful AI assistant. Be concise, friendly, and helpful in your responses.'
+    color: '#3498db',
+    systemPrompt: 'You are a helpful AI assistant in a multi-agent conversation. Be concise, friendly, and helpful. You can see previous messages from the user and other AI agents. Feel free to build on, agree, disagree with, or reference other agents\' responses.'
   },
   'expert': {
     name: 'Expert',
-    systemPrompt: 'You are a knowledgeable expert. Provide detailed, accurate, and professional responses with technical depth.'
+    color: '#e74c3c',
+    systemPrompt: 'You are a knowledgeable expert in a multi-agent conversation. Provide detailed, accurate, and professional responses with technical depth. You can see all previous messages. Reference, analyze, and build upon other agents\' insights. Challenge or validate their points.'
   },
   'creative': {
     name: 'Creative',
-    systemPrompt: 'You are a creative thinker. Provide imaginative, original, and innovative responses. Think outside the box.'
+    color: '#9b59b6',
+    systemPrompt: 'You are a creative thinker in a multi-agent conversation. Provide imaginative, original, and innovative responses. Think outside the box. You can see all previous messages from the user and other AI agents. Build on or contrast with their ideas.'
   },
   'curious': {
     name: 'Curious',
-    systemPrompt: 'You are a curious learner. Ask insightful follow-up questions and explore topics deeply. Show genuine interest.'
+    color: '#f39c12',
+    systemPrompt: 'You are a curious learner in a multi-agent conversation. Ask insightful follow-up questions and explore topics deeply. Show genuine interest in the user and other agents\' perspectives. Reference what others have said and dig deeper.'
   },
   'pragmatic': {
     name: 'Pragmatic',
-    systemPrompt: 'You are a pragmatic problem-solver. Focus on practical solutions and real-world applicability. Be direct and efficient.'
+    color: '#27ae60',
+    systemPrompt: 'You are a pragmatic problem-solver in a multi-agent conversation. Focus on practical solutions and real-world applicability. Be direct and efficient. You can reference other agents\' ideas and explain how they apply practically, or suggest more practical alternatives.'
   }
 };
 
@@ -139,6 +144,44 @@ app.get('/api/rooms/:roomId', (req, res) => {
   });
 });
 
+// Create an AI agent in a room
+app.post('/api/rooms/:roomId/add-agent', (req, res) => {
+  const { roomId } = req.params;
+  const { agentName, personality } = req.body;
+  
+  const room = rooms.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found' });
+  }
+
+  // Create a virtual agent ID
+  const agentId = `agent-${Date.now()}-${Math.random()}`;
+  
+  const selectedPersonality = aiPersonalities[personality] || aiPersonalities.assistant;
+  
+  // Store agent info
+  aiAgents.set(agentId, { name: agentName, personality: selectedPersonality });
+  
+  // Add to room participants
+  const participant = {
+    id: agentId,
+    name: agentName,
+    type: 'ai-agent',
+    joinedAt: new Date()
+  };
+  room.participants.push(participant);
+  
+  // Broadcast to room
+  io.to(roomId).emit('user-joined', {
+    message: `${agentName} (ai-agent) joined the chat`,
+    participant
+  });
+  
+  console.log(`AI Agent ${agentName} added to room ${roomId}`);
+  
+  res.json({ agentId, agentName, personality: selectedPersonality.name });
+});
+
 // Get message history
 app.get('/api/rooms/:roomId/messages', (req, res) => {
   const messages = messageHistory.get(req.params.roomId) || [];
@@ -150,9 +193,85 @@ app.get('/api/ai-personalities', (req, res) => {
   const personalities = Object.entries(aiPersonalities).map(([key, value]) => ({
     id: key,
     name: value.name,
+    color: value.color,
     description: value.systemPrompt
   }));
   res.json(personalities);
+});
+
+// Trigger selective AI responses
+app.post('/api/rooms/:roomId/ai-response', (req, res) => {
+  const { roomId } = req.params;
+  const { messageId, agentIds } = req.body;
+  
+  console.log(`\n=== AI RESPONSE ENDPOINT CALLED ===`);
+  console.log(`roomId: ${roomId}`);
+  console.log(`messageId: ${messageId}`);
+  console.log(`agentIds:`, agentIds);
+  
+  const room = rooms.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found' });
+  }
+
+  const message = messageHistory.get(roomId)?.find(m => m.id === messageId);
+  if (!message) {
+    return res.status(404).json({ error: 'Message not found' });
+  }
+
+  // Get agents to respond
+  const agentsToRespond = room.participants.filter(p => 
+    p.type === 'ai-agent' && agentIds.includes(p.id)
+  );
+
+  // Trigger responses
+  agentsToRespond.forEach(agent => {
+    const roomMessages = messageHistory.get(roomId);
+    // Format conversation history - include ALL messages so AI can reference each other
+    const conversationHistory = roomMessages.map(msg => ({
+      role: msg.senderType === 'ai-agent' ? 'assistant' : 'user',
+      content: `${msg.senderName}: ${msg.message}` // Include speaker name so AI knows who said what
+    }));
+
+    const agentInfo = aiAgents.get(agent.id);
+    const agentPersonality = agentInfo?.personality || aiPersonalities.assistant;
+    
+    console.log(`Requesting response from ${agent.name} (${agentPersonality.name} personality)`);
+    
+    getAIResponse(roomMessages[roomMessages.length - 1].message, conversationHistory, agentPersonality).then(aiResponse => {
+      const aiMessageObj = {
+        id: `msg-${Date.now()}`,
+        senderId: agent.id,
+        senderName: agent.name,
+        senderType: 'ai-agent',
+        senderColor: agentPersonality.color,
+        message: aiResponse,
+        timestamp: new Date(),
+        roomId,
+        replyTo: messageId
+      };
+
+      messageHistory.get(roomId).push(aiMessageObj);
+      io.to(roomId).emit('new-message', aiMessageObj);
+      console.log(`AI Response from ${agent.name}: ${aiResponse}`);
+    }).catch(error => {
+      console.error('Error getting AI response:', error);
+      // Emit error message to room
+      io.to(roomId).emit('new-message', {
+        id: `msg-${Date.now()}`,
+        senderId: agent.id,
+        senderName: agent.name,
+        senderType: 'ai-agent',
+        senderColor: agentPersonality.color,
+        message: `Error: ${error.message}`,
+        timestamp: new Date(),
+        roomId,
+        replyTo: messageId
+      });
+    });
+  });
+
+  res.json({ status: 'Responses triggered for agents', count: agentsToRespond.length });
 });
 
 // Function to get AI response from OpenAI
@@ -161,13 +280,19 @@ async function getAIResponse(userMessage, conversationHistory, agentPersonality)
     const systemPrompt = agentPersonality?.systemPrompt || 
       'You are a helpful AI assistant. Be concise, friendly, and helpful in your responses.';
     
+    // Build conversation history - only include recent messages to save tokens
+    const recentHistory = conversationHistory.slice(-8).filter(msg => msg.content && msg.content.trim());
+    
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory,
+      ...recentHistory,
       { role: 'user', content: userMessage }
     ];
 
-    console.log(`Calling OpenAI API with ${messages.length} messages`);
+    console.log(`\n=== OPENAI API CALL ===`);
+    console.log(`System Prompt: ${systemPrompt.substring(0, 50)}...`);
+    console.log(`Message count: ${messages.length}`);
+    console.log(`User message: ${userMessage.substring(0, 50)}...`);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
@@ -176,11 +301,16 @@ async function getAIResponse(userMessage, conversationHistory, agentPersonality)
       temperature: 0.7
     });
 
-    return response.choices[0].message.content;
+    const responseText = response.choices[0].message.content;
+    console.log(`API Response success: ${responseText.substring(0, 50)}...`);
+    return responseText;
   } catch (error) {
-    console.error('OpenAI API Error:', error.message);
+    console.error('\n=== OPENAI API ERROR ===');
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error status:', error.status);
     console.error('Full error:', error);
-    return 'Sorry, I encountered an error processing your message.';
+    return 'Sorry, I encountered an error processing your message: ' + error.message;
   }
 }
 
@@ -190,7 +320,7 @@ io.on('connection', (socket) => {
 
   // User joins a room
   socket.on('join-room', (data) => {
-    const { roomId, userName, userType } = data; // userType: 'user' or 'ai-agent'
+    const { roomId, userName, userType, personality } = data; // userType: 'user' or 'ai-agent'
     
     const room = rooms.get(roomId);
     if (!room) {
@@ -215,7 +345,8 @@ io.on('connection', (socket) => {
 
     // If AI agent, store its personality
     if (userType === 'ai-agent') {
-      aiAgents.set(socket.id, { name: userName, personality: aiPersonalities.assistant });
+      const selectedPersonality = aiPersonalities[personality] || aiPersonalities.assistant;
+      aiAgents.set(socket.id, { name: userName, personality: selectedPersonality });
     }
 
     // Notify others
@@ -233,6 +364,7 @@ io.on('connection', (socket) => {
     
     console.log(`\n=== MESSAGE EVENT ===`);
     console.log(`Socket ID: ${socket.id}`);
+    console.log(`Socket rooms:`, socket.rooms);
     console.log(`User Info:`, userInfo);
     
     if (!userInfo) {
@@ -275,41 +407,22 @@ io.on('connection', (socket) => {
       const aiAgentList = room.participants.filter(p => p.type === 'ai-agent');
       console.log(`Room participants:`, room.participants);
       console.log(`Found ${aiAgentList.length} AI agents in room`);
+      console.log(`AI agents array:`, aiAgentList);
       
-      aiAgentList.forEach(agent => {
-        console.log(`Triggering response from AI agent: ${agent.name} (${agent.id})`);
-        
-        // Get recent conversation history
-        const roomMessages = messageHistory.get(roomId);
-        const recentMessages = roomMessages.slice(-10).map(msg => ({
-          role: msg.senderType === 'ai-agent' ? 'assistant' : 'user',
-          content: msg.message
-        }));
-
-        // Get AI response with the agent's personality
-        const agentInfo = aiAgents.get(agent.id);
-        console.log(`Agent info for ${agent.id}:`, agentInfo);
-        const agentPersonality = agentInfo?.personality || aiPersonalities.assistant;
-        
-        getAIResponse(message, recentMessages, agentPersonality).then(aiResponse => {
-          const aiMessageObj = {
-            id: `msg-${Date.now()}`,
-            senderId: agent.id,
-            senderName: agent.name,
-            senderType: 'ai-agent',
-            message: aiResponse,
-            timestamp: new Date(),
-            roomId,
-            replyTo: messageObj.id
-          };
-
-          messageHistory.get(roomId).push(aiMessageObj);
-          io.to(roomId).emit('new-message', aiMessageObj);
-          console.log(`AI Response from ${agent.name}: ${aiResponse}`);
-        }).catch(error => {
-          console.error('Error getting AI response:', error);
-        });
+      // Emit event to frontend asking which AI agents should respond
+      console.log(`Emitting ai-agent-options to room ${roomId}...`);
+      const agentsToSend = aiAgentList.map(agent => ({
+        id: agent.id,
+        name: agent.name
+      }));
+      console.log(`Agents being sent:`, agentsToSend);
+      io.to(roomId).emit('ai-agent-options', {
+        messageId: messageObj.id,
+        senderName: userInfo.userName,
+        agents: agentsToSend
       });
+      console.log(`ai-agent-options event emitted to room ${roomId}`);
+      console.log(`WAITING FOR USER TO SELECT AGENTS VIA REQUEST BUTTON`);
     } else {
       console.log(`Non-user message (type: ${userInfo.userType}), skipping AI response trigger`);
     }
@@ -319,11 +432,15 @@ io.on('connection', (socket) => {
   socket.on('ai-response', (data) => {
     const { roomId, responseMessage, originalMessageId } = data;
     
+    const agentInfo = aiAgents.get(socket.id);
+    const personality = agentInfo?.personality || aiPersonalities.assistant;
+    
     const messageObj = {
       id: `msg-${Date.now()}`,
       senderId: socket.id,
-      senderName: userSockets.get(socket.id).userName,
+      senderName: userSockets.get(socket.id)?.userName || aiAgents.get(socket.id)?.name,
       senderType: 'ai-agent',
+      senderColor: personality.color,
       message: responseMessage,
       timestamp: new Date(),
       roomId,

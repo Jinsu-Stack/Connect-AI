@@ -355,6 +355,15 @@
 
             <div class="messages-container" id="messagesContainer"></div>
 
+            <div id="aiResponsePrompt" style="display: none; padding: 15px; background: #f0f0f0; border-top: 2px solid #ddd;">
+                <div style="margin-bottom: 10px; font-weight: bold;">Which AI agents should respond?</div>
+                <div id="aiAgentCheckboxes" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;"></div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="requestAIResponses()" style="flex: 1; background: #667eea;">Request Responses</button>
+                    <button onclick="askMoreQuestions()" style="flex: 1; background: #764ba2;">Ask More</button>
+                </div>
+            </div>
+
             <div class="chat-input-area" id="inputArea" style="display: none;">
                 <div class="input-wrapper">
                     <input type="text" id="messageInput" placeholder="Type your message... (press Enter to send)">
