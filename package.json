@@ -1,0 +1,27 @@
+{
+  "name": "ai-groupchat-backend",
+  "version": "1.0.0",
+  "description": "Backend for AI group chat application",
+  "main": "Backend.js",
+  "scripts": {
+    "start": "node Backend.js",
+    "dev": "nodemon Backend.js"
+  },
+  "keywords": [
+    "chat",
+    "ai-agents",
+    "groupchat",
+    "websocket",
+    "real-time"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.5.4",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
