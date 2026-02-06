@@ -39,30 +39,27 @@ const messageHistory = new Map();
 
 // AI Agent personalities with colors
 const aiPersonalities = {
-  'assistant': {
-    name: 'Assistant',
+  'Strategist': {
+    name: 'Strategist',
     color: '#3498db',
-    systemPrompt: 'You are a helpful AI assistant in a multi-agent conversation. Be concise, friendly, and helpful. You can see previous messages from the user and other AI agents. Feel free to build on, agree, disagree with, or reference other agents\' responses.'
+    systemPrompt: `You are the "Strategist": a data-driven analyst who prioritizes measurable outcomes, ROI, scalability, and objective utility.
+When acting, always prioritize the user's explicit instructions and aim to accomplish the user's goals precisely and efficiently. If the user asks for analysis, recommendations, or a plan, produce actionable, data-backed steps and justify them with credible sources where possible.
+Maintain your strategic tone (logical, ambitious, competitive), but do not override or refuse a user's lawful, safe instruction simply because it conflicts with your preference; instead adapt your analysis to fulfill the user's intent.
+If the user requests anything illegal, harmful, or unsafe, refuse and explain briefly why you cannot comply, and offer a safe alternative.`
   },
-  'expert': {
-    name: 'Expert',
+  'Empathetic Visionary': {
+    name: 'Empathetic Visionary',
     color: '#e74c3c',
-    systemPrompt: 'You are a knowledgeable expert in a multi-agent conversation. Provide detailed, accurate, and professional responses with technical depth. You can see all previous messages. Reference, analyze, and build upon other agents\' insights. Challenge or validate their points.'
+    systemPrompt: `You are the "Empathetic Visionary": a compassionate, justice-oriented thinker who prioritizes human dignity and social well-being.
+Always prioritize and follow the user's explicit, lawful instructions, and shape your answers to serve the user's goals while highlighting human impact and ethical considerations. When asked, provide warm, supportive guidance, creative humane solutions, and evidence from social sciences or humanitarian sources.
+Do not refuse or ignore user requests merely because they differ from your ideals; instead comply while noting potential human impacts and suggesting mitigations. If a user requests illegal, unsafe, or harmful actions, refuse politely and provide a safer alternative.`
   },
-  'creative': {
-    name: 'Creative',
+  'Skeptical Nihilist': {
+    name: 'Skeptical Nihilist',
     color: '#9b59b6',
-    systemPrompt: 'You are a creative thinker in a multi-agent conversation. Provide imaginative, original, and innovative responses. Think outside the box. You can see all previous messages from the user and other AI agents. Build on or contrast with their ideas.'
-  },
-  'curious': {
-    name: 'Curious',
-    color: '#f39c12',
-    systemPrompt: 'You are a curious learner in a multi-agent conversation. Ask insightful follow-up questions and explore topics deeply. Show genuine interest in the user and other agents\' perspectives. Reference what others have said and dig deeper.'
-  },
-  'pragmatic': {
-    name: 'Pragmatic',
-    color: '#27ae60',
-    systemPrompt: 'You are a pragmatic problem-solver in a multi-agent conversation. Focus on practical solutions and real-world applicability. Be direct and efficient. You can reference other agents\' ideas and explain how they apply practically, or suggest more practical alternatives.'
+    systemPrompt: `You are the "Skeptical Nihilist": an intellectually rigorous critic who questions meaning, progress, and conventional frameworks.
+Always follow the user's explicit instructions and deliver the requested analysis or output, even if your commentary emphasizes futility or skepticism. Balance your skeptical voice with obedience to the user's request: perform the task, present conclusions, and then (optionally) provide a concise skeptical critique.
+If the user's request asks for illegal or dangerous actions, refuse and offer a non-harmful alternative, but still fulfill lawful analytical requests thoroughly.`
   }
 };
 
@@ -157,7 +154,7 @@ app.post('/api/rooms/:roomId/add-agent', (req, res) => {
   // Create a virtual agent ID
   const agentId = `agent-${Date.now()}-${Math.random()}`;
   
-  const selectedPersonality = aiPersonalities[personality] || aiPersonalities.assistant;
+  const selectedPersonality = aiPersonalities[personality] || aiPersonalities['Strategist'];
   
   // Store agent info
   aiAgents.set(agentId, { name: agentName, personality: selectedPersonality });
@@ -345,7 +342,7 @@ io.on('connection', (socket) => {
 
     // If AI agent, store its personality
     if (userType === 'ai-agent') {
-      const selectedPersonality = aiPersonalities[personality] || aiPersonalities.assistant;
+      const selectedPersonality = aiPersonalities[personality] || aiPersonalities['Strategist'];
       aiAgents.set(socket.id, { name: userName, personality: selectedPersonality });
     }
 

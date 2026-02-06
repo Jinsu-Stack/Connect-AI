@@ -195,8 +195,13 @@ async function addAIAgent() {
         return;
     }
 
-    const agentName = document.getElementById('aiNameInput').value.trim() || 'Assistant';
+    let agentName = document.getElementById('aiNameInput').value.trim();
     const personality = document.getElementById('aiPersonalitySelect').value || 'assistant';
+    
+    // If no custom name provided, use the personality type as the name
+    if (!agentName) {
+        agentName = personality.charAt(0).toUpperCase() + personality.slice(1);
+    }
     
     try {
         const response = await fetch(`/api/rooms/${currentRoom}/add-agent`, {
@@ -211,7 +216,7 @@ async function addAIAgent() {
         addedAgents.push({ name: agentName, personality: personality, id: data.agentId });
         updateAIAgentsList();
         
-        document.getElementById('aiNameInput').value = 'Assistant';
+        document.getElementById('aiNameInput').value = '';
         console.log(`AI Agent "${agentName}" (${personality}) added to room`);
     } catch (error) {
         alert('Error adding AI agent: ' + error.message);
